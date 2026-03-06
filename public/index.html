@@ -1,0 +1,733 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PrecioLuz - Monitor de Precios</title>
+  <meta name="description"
+    content="Monitoreo inteligente de precios de electricidad PVPC en España. Consulta precios de hoy, mañana y estimaciones del mercado diario.">
+  <!-- Modern Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Plus+Jakarta+Sans:wght@300;400;600;700&display=swap"
+    rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
+  <style>
+    :root {
+      --primary: hsl(220, 85%, 57%);
+      --bg-gradient: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+      --card-glass: rgba(255, 255, 255, 0.03);
+      --card-border: rgba(255, 255, 255, 0.1);
+      --text-main: #f8fafc;
+      --text-dim: #94a3b8;
+      --accent-green: #22c55e;
+      --accent-red: #ef4444;
+      --accent-orange: #f59e0b;
+      --accent-purple: #a78bfa;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background: var(--bg-gradient);
+      color: var(--text-main);
+      min-height: 100vh;
+      padding: 1rem 0.5rem;
+      line-height: 1.6;
+    }
+
+    h1,
+    h2,
+    h3 {
+      font-family: 'Outfit', sans-serif;
+    }
+
+    .container {
+      max-width: 98%;
+      margin: 0 auto;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+
+    header h1 {
+      font-size: 2.5rem;
+      font-weight: 800;
+      background: linear-gradient(to right, #38bdf8, #818cf8);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 0.2rem;
+    }
+
+    header p {
+      color: var(--text-dim);
+      font-size: 1rem;
+    }
+
+    .controls {
+      display: flex;
+      justify-content: center;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+
+    button {
+      background: var(--primary);
+      color: white;
+      border: none;
+      padding: 0.6rem 1.5rem;
+      border-radius: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      font-family: inherit;
+      font-size: 0.95rem;
+      box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    button:hover {
+      transform: translateY(-2px);
+      filter: brightness(1.1);
+      box-shadow: 0 8px 25px rgba(59, 130, 246, 0.4);
+    }
+
+    button:active {
+      transform: translateY(0);
+    }
+
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .spinner {
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      display: none;
+    }
+
+    button.loading .spinner {
+      display: inline-block;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    .status-bar {
+      text-align: center;
+      margin-bottom: 1.5rem;
+      color: var(--text-dim);
+      font-size: 0.9rem;
+      min-height: 1.4rem;
+    }
+
+    .status-bar.error {
+      color: var(--accent-red);
+    }
+
+    .status-bar.success {
+      color: var(--accent-green);
+    }
+
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 2rem;
+    }
+
+    .section-block {
+      display: none;
+    }
+
+    .section-block.visible {
+      display: block;
+    }
+
+    .section-header {
+      margin-bottom: 1.5rem;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .dot-blue {
+      background: var(--primary);
+    }
+
+    .dot-orange {
+      background: var(--accent-orange);
+    }
+
+    .dot-purple {
+      background: var(--accent-purple);
+    }
+
+    .section-header h2 {
+      font-size: 1.4rem;
+      font-weight: 600;
+    }
+
+    .section-date {
+      color: var(--text-dim);
+      font-size: 0.95rem;
+      margin-left: 4px;
+    }
+
+    .card {
+      background: var(--card-glass);
+      border: 1px solid var(--card-border);
+      backdrop-filter: blur(12px);
+      border-radius: 20px;
+      padding: 1.2rem;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+      animation: fadeIn 0.8s ease-out forwards;
+    }
+
+    .chart-card {
+      min-height: 420px;
+      margin-bottom: 1.5rem;
+    }
+
+    .table-card {
+      overflow-x: auto;
+    }
+
+    canvas {
+      width: 100% !important;
+      height: 380px !important;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0 6px;
+      margin-top: 0.5rem;
+    }
+
+    th {
+      text-align: left;
+      padding: 0.9rem 1rem;
+      color: var(--text-dim);
+      font-weight: 600;
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 8px;
+      font-size: 0.9rem;
+    }
+
+    td {
+      padding: 0.85rem 1rem;
+      background: rgba(255, 255, 255, 0.02);
+      transition: all 0.2s;
+      font-size: 0.9rem;
+    }
+
+    tr td:first-child {
+      border-top-left-radius: 10px;
+      border-bottom-left-radius: 10px;
+    }
+
+    tr td:last-child {
+      border-top-right-radius: 10px;
+      border-bottom-right-radius: 10px;
+    }
+
+    tr:hover td {
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .badge {
+      padding: 0.2rem 0.65rem;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      display: inline-block;
+    }
+
+    .badge-low {
+      background: rgba(34, 197, 94, 0.2);
+      color: var(--accent-green);
+      border: 1px solid rgba(34, 197, 94, 0.3);
+    }
+
+    .badge-mid {
+      background: rgba(245, 158, 11, 0.2);
+      color: var(--accent-orange);
+      border: 1px solid rgba(245, 158, 11, 0.3);
+    }
+
+    .badge-high {
+      background: rgba(239, 68, 68, 0.2);
+      color: var(--accent-red);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+
+    .price-val {
+      font-family: 'Outfit', monospace;
+      font-weight: 600;
+    }
+
+    .highlight-cheapest td {
+      background: rgba(34, 197, 94, 0.08) !important;
+    }
+
+    .highlight-expensive td {
+      background: rgba(239, 68, 68, 0.08) !important;
+    }
+
+    .tables-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+      gap: 1.5rem;
+      margin-top: 1rem;
+    }
+
+    .table-section h3 {
+      margin-bottom: 0.8rem;
+      color: var(--text-dim);
+      font-size: 0.95rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .info-message {
+      color: var(--text-dim);
+      text-align: center;
+      padding: 2rem;
+      font-style: italic;
+    }
+
+    /* Animations */
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @media (max-width: 768px) {
+      header h1 {
+        font-size: 2rem;
+      }
+
+      .card {
+        padding: 1rem;
+      }
+
+      .tables-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="container">
+    <header>
+      <h1>PrecioLuz</h1>
+      <p>Monitoreo inteligente de precios de electricidad PVPC en España</p>
+    </header>
+
+    <div class="controls">
+      <button id="loadBtn" onclick="loadPrices()">
+        <span class="spinner"></span>
+        ⚡ Cargar Precios
+      </button>
+    </div>
+
+    <div class="status-bar" id="statusBar">Pulsa el botón para cargar los precios.</div>
+
+    <div class="dashboard-grid">
+
+      <!-- ===== SECCIÓN HOY ===== -->
+      <div class="section-block" id="todayBlock">
+        <div class="section-header">
+          <span class="dot dot-blue"></span>
+          <h2>Precios de Hoy <span class="section-date" id="currentDate"></span></h2>
+        </div>
+
+        <div class="card chart-card">
+          <canvas id="chartToday"></canvas>
+        </div>
+
+        <div class="tables-grid">
+          <div class="table-section">
+            <h3>Detalle Hoy</h3>
+            <div class="card table-card">
+              <table id="pricesTableToday">
+                <thead>
+                  <tr>
+                    <th>Franja Horaria</th>
+                    <th>Precio (€/kWh)</th>
+                    <th>Estado</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== SECCIÓN MAÑANA (PVPC FINAL) ===== -->
+      <div class="section-block" id="tomorrowBlock">
+        <div class="section-header">
+          <span class="dot dot-orange"></span>
+          <h2>Precios de Mañana <span class="section-date" id="tomorrowDate"></span></h2>
+        </div>
+
+        <div class="card chart-card">
+          <canvas id="chartTomorrow"></canvas>
+        </div>
+
+        <div class="tables-grid">
+          <div class="table-section">
+            <h3>Detalle Mañana (PVPC Final)</h3>
+            <div class="card table-card">
+              <table id="pricesTableTomorrow">
+                <thead>
+                  <tr>
+                    <th>Franja Horaria</th>
+                    <th>Precio (€/kWh)</th>
+                    <th>Estado</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== SECCIÓN ESTIMACIONES MAÑANA ===== -->
+      <div class="section-block" id="estimatesBlock">
+        <div class="section-header">
+          <span class="dot dot-purple"></span>
+          <h2>Estimaciones Mañana <span class="section-date" id="estimatesDate"></span></h2>
+        </div>
+
+        <div class="card chart-card">
+          <canvas id="chartEstimates"></canvas>
+        </div>
+
+        <div class="tables-grid">
+          <div class="table-section">
+            <h3>Estimaciones Mercado Diario</h3>
+            <div class="card table-card">
+              <table id="pricesTableEstimates">
+                <thead>
+                  <tr>
+                    <th>Franja Horaria</th>
+                    <th>Precio (€/kWh)</th>
+                    <th>Estado</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    Chart.register(ChartDataLabels);
+
+    let chartToday = null;
+    let chartTomorrow = null;
+    let chartEstimates = null;
+
+    // ---- Helpers ----
+
+    function formatDate(date) {
+      return `${date.getDate().toString().padStart(2, '0')}/${(date.getMonth() + 1).toString().padStart(2, '0')}/${date.getFullYear()}`;
+    }
+
+    function setStatus(msg, type = '') {
+      const bar = document.getElementById('statusBar');
+      bar.textContent = msg;
+      bar.className = 'status-bar' + (type ? ' ' + type : '');
+    }
+
+    function getStatus(price, min, max) {
+      const range = max - min;
+      if (price < min + (range * 0.33)) return { label: 'Bajo', cls: 'badge-low' };
+      if (price > max - (range * 0.33)) return { label: 'Alto', cls: 'badge-high' };
+      return { label: 'Medio', cls: 'badge-mid' };
+    }
+
+    function getColorForPrice(price, min, max) {
+      if (max === min) return 'rgba(34, 197, 94, 0.7)';
+      const ratio = (price - min) / (max - min);
+      const r = Math.floor(34 + (239 - 34) * ratio);
+      const g = Math.floor(197 + (68 - 197) * ratio);
+      const b = Math.floor(94 + (68 - 94) * ratio);
+      return `rgba(${r}, ${g}, ${b}, 0.75)`;
+    }
+
+    // ---- Table renderer ----
+
+    function renderTable(prices, tableId) {
+      const tbody = document.querySelector(`#${tableId} tbody`);
+      tbody.innerHTML = '';
+
+      const sorted = [...prices].sort((a, b) => a.hour - b.hour);
+      const values = sorted.map(p => parseFloat(p.price));
+      const min = Math.min(...values);
+      const max = Math.max(...values);
+
+      sorted.forEach(p => {
+        const val = parseFloat(p.price);
+        const st = getStatus(val, min, max);
+        const isCheapest = val === min;
+        const isExpensive = val === max;
+
+        const tr = document.createElement('tr');
+        if (isCheapest) tr.className = 'highlight-cheapest';
+        if (isExpensive) tr.className = 'highlight-expensive';
+
+        tr.innerHTML = `
+          <td>${p.hour.toString().padStart(2, '0')}:00 – ${(p.hour + 1).toString().padStart(2, '0')}:00</td>
+          <td class="price-val">${val.toFixed(5)} €</td>
+          <td><span class="badge ${st.cls}">${st.label}</span></td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function showInfoMessage(tableId, msg) {
+      const tbody = document.querySelector(`#${tableId} tbody`);
+      tbody.innerHTML = `<tr><td colspan="3" class="info-message">${msg}</td></tr>`;
+    }
+
+    // ---- Chart renderer ----
+
+    function renderChart(canvasId, prices, chartInstance, showTimeLine = false, accentColor = null) {
+      const ctx = document.getElementById(canvasId).getContext('2d');
+      if (chartInstance) chartInstance.destroy();
+
+      const sorted = [...prices].sort((a, b) => a.hour - b.hour);
+      const values = sorted.map(p => parseFloat(p.price));
+      const labels = sorted.map(p => `${p.hour}:00`);
+      const min = Math.min(...values);
+      const max = Math.max(...values);
+
+      const barColors = values.map(v => getColorForPrice(v, min, max));
+      const borderColors = barColors.map(c => c.replace('0.75', '1'));
+
+      const plugins = [];
+
+      if (showTimeLine) {
+        plugins.push({
+          id: 'currentTimeLine',
+          afterDraw: (chart) => {
+            const now = new Date();
+            const totalHours = now.getHours() + (now.getMinutes() / 60);
+            const xAxis = chart.scales.x;
+            const yAxis = chart.scales.y;
+            const xPos = xAxis.getPixelForValue(totalHours);
+            const c = chart.ctx;
+            c.save();
+            c.beginPath();
+            c.lineWidth = 3;
+            c.strokeStyle = '#ef4444';
+            c.setLineDash([6, 4]);
+            c.moveTo(xPos, yAxis.top);
+            c.lineTo(xPos, yAxis.bottom);
+            c.stroke();
+            c.fillStyle = '#ef4444';
+            c.font = 'bold 12px Outfit';
+            c.textAlign = 'center';
+            c.shadowColor = 'rgba(0,0,0,0.6)';
+            c.shadowBlur = 4;
+            c.fillText('AHORA', xPos, yAxis.top - 10);
+            c.restore();
+          }
+        });
+      }
+
+      const lineColor = accentColor || 'rgba(255, 255, 255, 0.5)';
+
+      return new Chart(ctx, {
+        plugins: plugins,
+        data: {
+          labels: labels,
+          datasets: [
+            {
+              type: 'line',
+              label: 'Tendencia',
+              data: values,
+              borderColor: lineColor,
+              borderWidth: 3,
+              pointRadius: 0,
+              tension: 0.4,
+              fill: false,
+              order: 1,
+              datalabels: { display: false }
+            },
+            {
+              type: 'bar',
+              label: 'Precio (€/kWh)',
+              data: values,
+              backgroundColor: barColors,
+              borderColor: borderColors,
+              borderWidth: 1,
+              borderRadius: 8,
+              order: 2,
+              datalabels: {
+                color: '#fff',
+                anchor: 'end',
+                align: 'bottom',
+                offset: 8,
+                font: { weight: 'bold', size: 10, family: 'Outfit' },
+                formatter: (value) => value.toFixed(3)
+              }
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: '#1e293b',
+              titleFont: { size: 15, family: 'Outfit' },
+              bodyFont: { size: 13 },
+              padding: 12,
+              cornerRadius: 12,
+              displayColors: true,
+              callbacks: {
+                label: (context) => ` ${context.parsed.y.toFixed(5)} €/kWh`
+              }
+            }
+          },
+          scales: {
+            x: {
+              grid: {
+                display: true,
+                color: 'rgba(0, 0, 0, 0.7)',
+                lineWidth: 2,
+                drawOnChartArea: true,
+                drawTicks: true
+              },
+              ticks: { color: '#94a3b8', font: { family: 'Plus Jakarta Sans' } }
+            },
+            y: {
+              grid: { color: 'rgba(255,255,255,0.05)' },
+              ticks: {
+                color: '#94a3b8',
+                font: { family: 'Plus Jakarta Sans' },
+                callback: v => v.toFixed(3) + ' €'
+              }
+            }
+          }
+        }
+      });
+    }
+
+    // ---- Main loader ----
+
+    async function loadPrices() {
+      const btn = document.getElementById('loadBtn');
+      btn.disabled = true;
+      btn.classList.add('loading');
+      setStatus('Cargando precios desde la API…');
+
+      try {
+        const res = await fetch('/api/pvpc');
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+
+        const now = new Date();
+        const tomorrow = new Date(now);
+        tomorrow.setDate(now.getDate() + 1);
+
+        // ---- HOY ----
+        if (data.today && data.today.length > 0) {
+          document.getElementById('currentDate').textContent = `(${formatDate(now)})`;
+          renderTable(data.today, 'pricesTableToday');
+          chartToday = renderChart('chartToday', data.today, chartToday, true, 'rgba(56, 189, 248, 0.7)');
+          document.getElementById('todayBlock').classList.add('visible');
+        }
+
+        // ---- MAÑANA (PVPC FINAL) ----
+        document.getElementById('tomorrowDate').textContent = `(${formatDate(tomorrow)})`;
+        document.getElementById('tomorrowBlock').classList.add('visible');
+
+        if (data.tomorrow && data.tomorrow.length > 0) {
+          renderTable(data.tomorrow, 'pricesTableTomorrow');
+          chartTomorrow = renderChart('chartTomorrow', data.tomorrow, chartTomorrow, false, 'rgba(245, 158, 11, 0.7)');
+        } else {
+          showInfoMessage('pricesTableTomorrow', 'Datos finales no disponibles aún (normalmente tras las 20:15).');
+          // Hide chart canvas if no data
+          document.getElementById('chartTomorrow').style.display = 'none';
+          const card = document.getElementById('chartTomorrow').closest('.chart-card');
+          if (card) card.style.minHeight = '0';
+        }
+
+        // ---- ESTIMACIONES MAÑANA ----
+        document.getElementById('estimatesDate').textContent = `(${formatDate(tomorrow)})`;
+        document.getElementById('estimatesBlock').classList.add('visible');
+
+        if (data.tomorrowEstimates && data.tomorrowEstimates.length > 0) {
+          renderTable(data.tomorrowEstimates, 'pricesTableEstimates');
+          chartEstimates = renderChart('chartEstimates', data.tomorrowEstimates, chartEstimates, false, 'rgba(167, 139, 250, 0.7)');
+        } else {
+          showInfoMessage('pricesTableEstimates', 'Estimaciones no disponibles aún (normalmente tras las 13:30).');
+          document.getElementById('chartEstimates').style.display = 'none';
+          const card = document.getElementById('chartEstimates').closest('.chart-card');
+          if (card) card.style.minHeight = '0';
+        }
+
+        setStatus(`✓ Precios cargados correctamente — ${now.toLocaleTimeString('es-ES')}`, 'success');
+
+      } catch (err) {
+        console.error(err);
+        setStatus(`✗ Error al cargar precios: ${err.message}`, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.classList.remove('loading');
+      }
+    }
+  </script>
+
+</body>
+
+</html>
