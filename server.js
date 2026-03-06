@@ -5,8 +5,6 @@ const path = require('path');
 
 const app = express();
 const PORT = 3000;
-console.log(process.env.ESIOS_TOKEN);
-console.log(ESIOS_TOKEN);
 // ✅ Permitir CORS para todos los orígenes
 app.use(cors());
 
