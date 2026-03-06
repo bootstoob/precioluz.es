@@ -1,4 +1,4 @@
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   const token = process.env.ESIOS_TOKEN;
 
   if (!token) {
