@@ -84,4 +84,10 @@ app.get('/api/pvpc', async (req, res) => {
   }
 });
 
-app.listen(PORT, () => console.log(`Server running at http://localhost:${PORT}`));
+// Export explicitly for Vercel Serverless
+module.exports = app;
+
+// Run locally if not on Vercel
+if (require.main === module && !process.env.VERCEL) {
+  app.listen(PORT, () => console.log(`Server running at http://localhost:${PORT}`));
+}
